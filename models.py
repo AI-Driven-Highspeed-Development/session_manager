@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean
@@ -23,8 +23,8 @@ class User(Base):
     username = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
 
@@ -40,8 +40,8 @@ class Session(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     token = Column(String(64), unique=True, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
     is_revoked = Column(Boolean, default=False, nullable=False)
 
     user = relationship("User", back_populates="sessions")
@@ -54,6 +54,6 @@ class Session(Base):
         """Check if session is valid (not revoked and not expired)."""
         if self.is_revoked:
             return False
-        if self.expires_at and datetime.utcnow() > self.expires_at:
+        if self.expires_at and datetime.now(timezone.utc) > self.expires_at:
             return False
         return True

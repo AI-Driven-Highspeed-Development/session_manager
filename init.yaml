@@ -3,4 +3,5 @@ folder_path: managers/session_manager
 type: manager
 requirements:
   - https://github.com/AI-Driven-Highspeed-Development/auth_manager.git
+  - https://github.com/AI-Driven-Highspeed-Development/Logger-Util.git
 repo_url: https://github.com/AI-Driven-Highspeed-Development/session_manager.git

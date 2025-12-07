@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timedelta
-from typing import Optional
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
+from typing import Iterator, Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session as DBSession, sessionmaker
 
 from managers.auth_manager import AuthManager
 from managers.session_manager.models import Base, User, Session
+from utils.logger_util import Logger
 
 
 class SessionManager:
@@ -37,6 +39,7 @@ class SessionManager:
             db_url: SQLAlchemy database URL. Defaults to SQLite.
             session_duration_days: Session validity period in days.
         """
+        self.logger = Logger(name=__class__.__name__)
         self._db_url = db_url or self.DEFAULT_DB_URL
         self._session_duration = timedelta(days=session_duration_days)
         self._auth = AuthManager()
@@ -116,7 +119,7 @@ class SessionManager:
             ValueError: If user does not exist.
         """
         token = secrets.token_hex(self.DEFAULT_TOKEN_LENGTH)
-        expires_at = datetime.utcnow() + self._session_duration
+        expires_at = datetime.now(timezone.utc) + self._session_duration
 
         with self._get_db() as db:
             user = db.query(User).filter(User.id == user_id).first()
@@ -212,6 +215,11 @@ class SessionManager:
 
     # ---------------- Private Methods ----------------
 
-    def _get_db(self) -> DBSession:
+    @contextmanager
+    def _get_db(self) -> Iterator[DBSession]:
         """Get a database session context manager."""
-        return self._session_factory()
+        session = self._session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
