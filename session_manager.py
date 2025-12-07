@@ -11,37 +11,26 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session as DBSession, sessionmaker
 
 from managers.auth_manager import AuthManager
+from managers.config_manager import ConfigManager
 from managers.session_manager.models import Base, User, Session
 from utils.logger_util import Logger
 
 
 class SessionManager:
-    """Manages user sessions with token-based authentication.
-
-    Handles user creation, session token generation, validation, and revocation.
-    Uses SQLAlchemy for persistence with configurable database backend.
-
-    Default database: SQLite at project/data/sessions.db
-    """
-
-    DEFAULT_DB_URL = "sqlite:///project/data/sessions.db"
-    DEFAULT_TOKEN_LENGTH = 32
-    DEFAULT_SESSION_DURATION_DAYS = 30
+    """Manages user sessions with token-based authentication."""
 
     def __init__(
         self,
         db_url: Optional[str] = None,
-        session_duration_days: int = DEFAULT_SESSION_DURATION_DAYS,
+        session_duration_days: Optional[int] = None,
     ) -> None:
-        """Initialize SessionManager.
-
-        Args:
-            db_url: SQLAlchemy database URL. Defaults to SQLite.
-            session_duration_days: Session validity period in days.
-        """
         self.logger = Logger(name=__class__.__name__)
-        self._db_url = db_url or self.DEFAULT_DB_URL
-        self._session_duration = timedelta(days=session_duration_days)
+        self.config = ConfigManager().config.session_manager
+
+        self._db_url = db_url or self.config.database.url
+        duration = session_duration_days or self.config.session.duration_days
+        self._session_duration = timedelta(days=duration)
+
         self._auth = AuthManager()
 
         self._engine = create_engine(self._db_url)
@@ -51,18 +40,7 @@ class SessionManager:
     # ---------------- User Management ----------------
 
     def create_user(self, username: str, password: str) -> User:
-        """Create a new user with hashed password.
-
-        Args:
-            username: Unique username.
-            password: Plaintext password (will be hashed).
-
-        Returns:
-            The created User object.
-
-        Raises:
-            ValueError: If username already exists.
-        """
+        """Create a new user with hashed password."""
         password_hash = self._auth.hash_password(password)
 
         with self._get_db() as db:
@@ -77,27 +55,12 @@ class SessionManager:
             return user
 
     def get_user(self, username: str) -> Optional[User]:
-        """Get a user by username.
-
-        Args:
-            username: The username to look up.
-
-        Returns:
-            The User object or None if not found.
-        """
+        """Get a user by username."""
         with self._get_db() as db:
             return db.query(User).filter(User.username == username).first()
 
     def authenticate_user(self, username: str, password: str) -> Optional[User]:
-        """Authenticate a user with username and password.
-
-        Args:
-            username: The username.
-            password: The plaintext password.
-
-        Returns:
-            The User object if credentials are valid, None otherwise.
-        """
+        """Authenticate a user with username and password."""
         with self._get_db() as db:
             user = db.query(User).filter(User.username == username).first()
             if user and self._auth.verify_password(password, user.password_hash):
@@ -107,18 +70,8 @@ class SessionManager:
     # ---------------- Session Management ----------------
 
     def create_session(self, user_id: int) -> str:
-        """Create a new session token for a user.
-
-        Args:
-            user_id: The user's ID.
-
-        Returns:
-            The session token string.
-
-        Raises:
-            ValueError: If user does not exist.
-        """
-        token = secrets.token_hex(self.DEFAULT_TOKEN_LENGTH)
+        """Create a new session token for a user."""
+        token = secrets.token_hex(self.config.session.token_length)
         expires_at = datetime.now(timezone.utc) + self._session_duration
 
         with self._get_db() as db:
@@ -136,14 +89,7 @@ class SessionManager:
             return token
 
     def validate_session(self, token: str) -> Optional[User]:
-        """Validate a session token and return the associated user.
-
-        Args:
-            token: The session token to validate.
-
-        Returns:
-            The User object if token is valid, None otherwise.
-        """
+        """Validate a session token and return the associated user."""
         with self._get_db() as db:
             session = db.query(Session).filter(Session.token == token).first()
             if session and session.is_valid:
@@ -151,14 +97,7 @@ class SessionManager:
             return None
 
     def revoke_session(self, token: str) -> bool:
-        """Revoke a specific session token.
-
-        Args:
-            token: The session token to revoke.
-
-        Returns:
-            True if session was revoked, False if not found.
-        """
+        """Revoke a specific session token."""
         with self._get_db() as db:
             session = db.query(Session).filter(Session.token == token).first()
             if session:
@@ -168,14 +107,7 @@ class SessionManager:
             return False
 
     def revoke_sessions(self, user_id: int) -> int:
-        """Revoke all sessions for a user.
-
-        Args:
-            user_id: The user's ID.
-
-        Returns:
-            Number of sessions revoked.
-        """
+        """Revoke all sessions for a user."""
         with self._get_db() as db:
             sessions = db.query(Session).filter(
                 Session.user_id == user_id,
@@ -188,29 +120,14 @@ class SessionManager:
             return count
 
     def login(self, username: str, password: str) -> Optional[str]:
-        """Authenticate user and create a session in one step.
-
-        Args:
-            username: The username.
-            password: The plaintext password.
-
-        Returns:
-            Session token if login successful, None otherwise.
-        """
+        """Authenticate user and create a session in one step."""
         user = self.authenticate_user(username, password)
         if user:
             return self.create_session(user.id)
         return None
 
     def logout(self, token: str) -> bool:
-        """Logout by revoking the session token.
-
-        Args:
-            token: The session token to revoke.
-
-        Returns:
-            True if logged out successfully.
-        """
+        """Logout by revoking the session token."""
         return self.revoke_session(token)
 
     # ---------------- Private Methods ----------------

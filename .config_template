@@ -2,5 +2,12 @@
     "module_name": "session_manager",
     "path": {
         "data": "./project/data/session_manager"
+    },
+    "database": {
+        "url": "sqlite:///project/data/sessions.db"
+    },
+    "session": {
+        "token_length": 32,
+        "duration_days": 30
     }
 }
