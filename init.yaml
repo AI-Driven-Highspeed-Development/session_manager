@@ -1,5 +1,6 @@
 version: 0.0.1
 folder_path: managers/session_manager
 type: manager
-requirements: []
+requirements:
+  - https://github.com/AI-Driven-Highspeed-Development/auth_manager.git
 repo_url: https://github.com/AI-Driven-Highspeed-Development/session_manager.git
