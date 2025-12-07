@@ -46,7 +46,7 @@ class SessionManager:
 
         self._engine = create_engine(self._db_url)
         Base.metadata.create_all(self._engine)
-        self._session_factory = sessionmaker(bind=self._engine)
+        self._session_factory = sessionmaker(bind=self._engine, expire_on_commit=False)
 
     # ---------------- User Management ----------------
 
